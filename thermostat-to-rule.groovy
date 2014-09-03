@@ -19,8 +19,8 @@ definition(
     author: "Eric Roberts",
     description: "A thermostat for everything in your house",
     category: "Green Living",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+    iconUrl: "http://www.williamsmusic.org/images/thermostat.png",
+    iconX2Url: "http://www.williamsmusic.org/images/thermostat@2x.png")
 
 
 preferences {
