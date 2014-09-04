@@ -454,6 +454,7 @@ def initialize() {
         makeSubscriptions(n)
     	//makeSchedule(n)
         onOrOffCheck(n)
+        setThermostat(n)
     }
     
     // set for current mode and subscribe to mode changes
@@ -586,6 +587,7 @@ private def onOrOffCheck(n) {
     def room = state.rooms[n]
     def devices = getRoomDevices(n)
     def setTemp = room.setTemp.toInteger()
+    def currentTemp = devices.tempMonitor.currentTemperature
     
     log.debug("onoff devices")
     log.debug(devices.conditioner)
@@ -594,43 +596,53 @@ private def onOrOffCheck(n) {
     
     if (room.setMode == "cool") {
     	if (devices.tempMonitor) {
-    		if (devices.tempMonitor.currentTemperature >= (setTemp + 1)) {
+    		if (currentTemp >= (setTemp + 1)) {
             	devices.conditioner?.on()
-                log.debug("turning on")
-                log.debug(devices.conditioner)
-            } else if (devices.tempMonitor.currentTemperature <= (setTemp - 1)) {
+                log.debug("turning on ${devices.conditioner}")
+            } else if (currentTemp <= (setTemp - 1)) {
             	devices.conditioner?.off()
-                log.debug("turning off")
-            }
-    	} else if (devices.thermostat) {
-    		if (devices.thermostat.currentTemperature >= (setTemp + 1)) {
-            	devices.conditioner?.on()
-            } else if (devices.thermostat.currentTemperature <= (setTemp - 1)) {
-            	devices.conditioner?.off()
+                log.debug("turning off ${devices.conditioner}")
             }
     	} else {
         	log.debug("No way to tell temp")
         }
     } else if (room.setMode == "heat") {
     	if (devices.tempMonitor) {
-    		if (devices.tempMonitor.currentTemperature.toInteger() <= (setTemp - 1)) {
+    		if (currentTemp <= (setTemp - 1)) {
             	devices.heater?.on()
-            } else if (devices.tempMonitor.currentTemperature.toInteger() >= (setTemp + 1)) {
+                log.debug("turning on ${devices.heater}")
+            } else if (currentTemp >= (setTemp + 1)) {
             	devices.heater?.off()
-            }
-    	} else if (devices.thermostat) {
-    		if (devices.thermostat.currentTemperature.toInteger() <= (setTemp - 1)) {
-            	devices.heater?.on()
-            } else if (devices.thermostat.currentTemperature.toInteger() >= (setTemp + 1)) {
-            	devices.heater?.off()
+                log.debug("turning off ${devices.heater}")
             }
     	} else {
         	log.debug("No way to tell temp")
         }
     } else {
     	log.debug("Mode set to off")
+        log.debug("turning off ${devices.heater} and ${devices.conditioner}")
         devices.heater?.off()
         devices.conditioner?.off()
+    }
+}
+
+private def setThermostat(n) {
+	def room = state.rooms[n]
+    def devices = getRoomDevices(n)
+    
+    def setTemp = room.setTemp
+    def setMode = room.setMode
+    
+    if (devices.thermostat) {
+        if (setMode == "heat") {
+            devices.thermostat.setHeatingSetpoint(setTemp)
+            devices.thermostat.heat()
+        } else if (setMode == "cool") {
+            devices.thermostat.setCoolingSetpoint(setTemp)
+            devices.thermostat.cool()
+        } else {
+            devices.thermostat.off()
+        }
     }
 }
 
@@ -655,7 +667,7 @@ private def makeSchedule(n) {
     def timeRun3 = room.timeRun3
     
     
-    
+    // Something to schedule temp changes at set times
     
     
     onOrOffCheck(n)
@@ -676,6 +688,7 @@ def onLocation(evt) {
                 room.setTemp = room.homeSetTemp
             }
             onOrOffCheck(n)
+            setThermostat(n)
         }
     } else if (settings.awayModes?.contains(mode)) {
     	for (int n = 0; n < state.numRooms; n++) {
@@ -684,6 +697,7 @@ def onLocation(evt) {
                 room.setTemp = room.awaySetTemp
             }
             onOrOffCheck(n)
+            setThermostat(n)
         }
     } else if (settings.asleepModes?.contains(mode)) {
     	for (int n = 0; n < state.numRooms; n++) {
@@ -692,6 +706,7 @@ def onLocation(evt) {
                 room.setTemp = room.asleepSetTemp
             }
             onOrOffCheck(n)
+            setThermostat(n)
         }
     }
 }
