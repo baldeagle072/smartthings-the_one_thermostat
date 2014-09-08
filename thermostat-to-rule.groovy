@@ -20,7 +20,9 @@ definition(
     description: "A thermostat for everything in your house",
     category: "Green Living",
     iconUrl: "http://www.williamsmusic.org/images/thermostat.png",
-    iconX2Url: "http://www.williamsmusic.org/images/thermostat@2x.png")
+    iconX2Url: "http://www.williamsmusic.org/images/thermostat@2x.png",
+    oauth: true
+)
 
 
 preferences {
@@ -73,7 +75,7 @@ def setupConfigure() {
     	"Hit the 'Next' button when done."
         
     def helpNumRooms = 
-    	"You can have as many rooms as you need. Each room can control an air " +
+    	"You can have up to 8 rooms. Each room can control an air " +
         "conditioner, a heater, a thermostat, and have a temperature sensor."
     
     def helpModes =
@@ -191,6 +193,12 @@ def setupProgram() {
     ]
     
     return dynamicPage(pageProperties) {
+    
+    	def helpProgramPage = "Press 'Done' at the top to set the new program"
+        
+        section {
+        	paragraph helpProgramPage
+        }
         for (int n = 0; n < state.numRooms; n++) {
         	
             def r = n + 1
@@ -212,6 +220,8 @@ def setupProgram() {
             def timeRun1 = room.timeRun1
             def timeRun2 = room.timeRun2
             def timeRun3 = room.timeRun3
+            
+            def helpModeChange = "Set these temperature to change the next time it enters that mode."
             
             def inputHomeSetNewTemp = [
                 name:           "r${r}_homeSetTemp",
@@ -262,6 +272,7 @@ def setupProgram() {
             ]
             
             section(room.name) {
+            	paragraph helpModeChange
             	input inputHomeSetNewTemp
                 input inputHomeRun
                 input inputAwaySetNewTemp
@@ -269,6 +280,8 @@ def setupProgram() {
                 input inputAsleepSetNewTemp
                 input inputAsleepRun
             }
+            
+            def helpTimeChange = "Set these to change the set temperature at specific times every day."
              
             def inputTime1 = [
                 name:           "r${r}_time1",
@@ -342,7 +355,8 @@ def setupProgram() {
                 required:       false
             ]
             
-           /* section("Set at specific times", hideable:true, hidden:true) {
+           	section("Set at specific times", hideable:true, hidden:true) {
+           		paragraph helpTimeChange
             	input inputTime1
                 input inputTimeSetTemp1
                 input inputTimeRun1
@@ -354,7 +368,7 @@ def setupProgram() {
                 input inputTime3
                 input inputTimeSetTemp3
                 input inputTimeRun3
-            } */
+            } 
         }
     }
 }
@@ -370,6 +384,11 @@ def setupControlPanel() {
     ]
     
     return dynamicPage(pageProperties) {
+    	def helpControlPanel = "Press 'Done' at the top to set the new temperature"
+    
+    	section {
+            paragraph helpControlPanel
+        }
         for (int n = 0; n < state.numRooms; n++) {
         	
             def r = n + 1
@@ -380,15 +399,10 @@ def setupControlPanel() {
             def setTemp = room.setTemp
             def setMode = room.setMode
             
-            def currentTemp = 0
-            
-            if (devices.thermostat) {
-            	currentTemp = devices.thermostat.currentTemperature
-            } else if (devices.tempMonitor) {
-            	currentTemp = devices.tempMonitor.currentTemperature
-            }
+            def currentTemp = devices.tempMonitor.currentTemperature
             
             //log.debug(currentTemp)
+            
             
             def textCurrentTemp = "Current Temperature: ${currentTemp}"
             
@@ -408,6 +422,8 @@ def setupControlPanel() {
                 defaultValue:   setMode,
                 required:       true
             ]
+            
+            
             
             section(room.name) {
             	paragraph textCurrentTemp
@@ -452,16 +468,15 @@ def initialize() {
     for (int n = 0; n < state.numRooms; n++) {
     	state.rooms[n] = roomInit(n)
         makeSubscriptions(n)
-    	//makeSchedule(n)
         onOrOffCheck(n)
         setThermostat(n)
     }
     
     // set for current mode and subscribe to mode changes
     
-    subscribe(location, onLocation)
+    schedule("0 * * * * ?", "checkSchedule")
     
-    
+    subscribe(location, onLocation)  
 }
 
 private def roomInit(n) {
@@ -470,6 +485,7 @@ private def roomInit(n) {
     def room = state.rooms[n]
     
     def handlers = [onRoom1, onRoom2, onRoom3, onRoom4, onRoom5, onRoom6, onRoom7, onRoom8]
+    def thermHandlers = [thermRoom1, thermRoom2, thermRoom3, thermRoom4, thermRoom5, thermRoom6, thermRoom7, thermRoom8]
     
     if (room == null) {
     	room = [:]}
@@ -564,6 +580,7 @@ private def roomInit(n) {
     }
     
     room.handler = handlers[n]
+    room.thermHandler = thermHandlers[n]
     
     log.debug("Name: " + room.name)
     log.debug("setTemp: " + room.setTemp)
@@ -580,6 +597,33 @@ def onRoom5(evt) { tempHandler(4) }
 def onRoom6(evt) { tempHandler(5) }
 def onRoom7(evt) { tempHandler(6) }
 def onRoom8(evt) { tempHandler(7) }
+
+def thermRoom1(evt) { thermostatChange(0, evt.value) }
+def thermRoom2(evt) { thermostatChange(1, evt.value) }
+def thermRoom3(evt) { thermostatChange(2, evt.value) }
+def thermRoom4(evt) { thermostatChange(3, evt.value) }
+def thermRoom5(evt) { thermostatChange(4, evt.value) }
+def thermRoom6(evt) { thermostatChange(5, evt.value) }
+def thermRoom7(evt) { thermostatChange(6, evt.value) }
+def thermRoom8(evt) { thermostatChange(7, evt.value) }
+
+private def thermostatChange(n, newSetTemp) {
+	def room = state.rooms[n]
+    def devices = getRoomDevices(n)
+    def newThermMode = devices.thermostat.latestValue("thermostatMode")
+    
+    room.setTemp = newSetTemp
+    
+    if (newThermMode == "cool") {
+    	room.setMode = "cool"
+    } else if (newThermMode == "heat") {
+    	room.setMode = "heat"
+    } else {
+    	room.setMode = "off"
+    }
+    
+    onOrOffCheck(n)
+}
 
 private def onOrOffCheck(n) {
 	log.debug("Checking temperature")
@@ -651,26 +695,65 @@ private def makeSubscriptions(n) {
     def devices = getRoomDevices(n)
     
     subscribe(devices.tempMonitor, "temperature", room.handler)
+    subscribe(devices.thermostat, "thermostatSetpoint", room.thermHandler)
 }
 
-private def makeSchedule(n) {
-	def room = state.rooms[n]
-    
-    def time1 = room.time1
-    def time2 = room.time2
-    def time3 = room.time3
-    def timeSetTemp1 = room.timeSetTemp1
-    def timeSetTemp2 = room.timeSetTemp2
-    def timeSetTemp3 = room.timeSetTemp3
-    def timeRun1 = room.timeRun1
-    def timeRun2 = room.timeRun2
-    def timeRun3 = room.timeRun3
-    
-    
-    // Something to schedule temp changes at set times
-    
-    
-    onOrOffCheck(n)
+private def checkSchedule() {
+	TRACE("Checking Schedule")
+    for (int n = 0; n < state.numRooms; n++) {
+        def room = state.rooms[n]
+		
+        def time1Hour = 0
+        def time1Minute = 0
+        def time2Hour = 0
+        def time2Minute = 0
+        def time3Hour = 0
+        def time3Minute = 0
+
+        def time1 			= room.time1
+        if (time1 != null) {
+            time1Hour 	= time1.getHours()
+            time1Minute	= time1.getMinutes()
+            
+        }
+        def time2 			= room.time2
+        if (time2 != null) {
+            time2Hour 	= time2.getHours()
+            time2Minute	= time2.getMinutes()
+        }
+        def time3 			= room.time3
+        if (time3 != null) {
+            time3Hour 	= time3.getHours()
+            time3Minute	= time3.getMinutes()
+        }
+        def timeSetTemp1	= room.timeSetTemp1
+        def timeSetTemp2 	= room.timeSetTemp2
+        def timeSetTemp3 	= room.timeSetTemp3
+        def timeRun1 		= room.timeRun1
+        def timeRun2 		= room.timeRun2
+        def timeRun3 		= room.timeRun3
+        
+        def currentTime 	= new Date(now())
+        def currentHour 	= currentTime.getHours()
+        def currentMinute	= currentTime.getMinutes()
+       
+        TRACE("Time1 Hour: $time1Hour Time1 Minute: $time1Minute timeRun1: $timeRun1")
+        TRACE("currentHour: $currentHour currentMinute: $currentMinute")
+        
+        if ((time1Hour == currentHour) && (time1Minute == currentMinute) && timeRun1) {
+			room.setTemp = timeSetTemp1
+            log.debug ("setting time 1 temp")
+            onOrOffCheck(n)
+        } else if ((time2Hour == currentHour) && (time2Minute == currentMinute) && timeRun2) {
+			room.setTemp = timeSetTemp2
+            log.debug ("setting time 2 temp")
+            onOrOffCheck(n)
+        } else if ((time3Hour == currentHour) && (time3Minute == currentMinute) && timeRun3) {
+			room.setTemp = timeSetTemp3
+            log.debug ("setting time 3 temp")
+            onOrOffCheck(n)
+        }
+    }
 }
     
 def tempHandler(n) {
@@ -734,4 +817,64 @@ def getRoomDevices(n) {
 private def TRACE(message) {
     log.debug message
     //log.debug "state: ${state}"
+}
+
+// Endpoint API
+
+mappings {
+    
+    path("/currentTemp/:room") {
+    	action: [GET: "getRoomTemp"]
+    }
+    
+    path("/setTemp/:room/:newSetTemp") {
+    	action: [GET: "setRoomTemp"]
+    }
+    
+    path("/setMode/:room/:newSetMode") {
+    	action: [GET: "setRoomMode"]
+    }
+    
+}
+
+def getRoomTemp() {
+    roomTemp(params.room.toInteger())
+}
+
+private roomTemp(n) {
+	log.debug("n: $n")
+	def room = state.rooms[n]
+    log.debug("room: $room")
+    def devices = getRoomDevices(n)
+    log.debug("devices: $devices")
+    def setTemp = room.setTemp.toInteger()
+    def currentTemp = devices.tempMonitor.currentTemperature
+    def setMode = room.setMode
+    
+    [roomNum: n, room: room.name, currentTemp: currentTemp, setTemp: setTemp, setMode: setMode]
+}
+
+void setRoomTemp() {
+	def n = params.room.toInteger()
+    def newSetTemp = params.newSetTemp.toInteger()
+	def room = state.rooms[n]
+    
+    room.setTemp = newSetTemp
+    
+    onOrOffCheck(n)
+}
+
+void setRoomMode() {
+	def n = params.room.toInteger()
+    def newSetMode = params.newSetMode
+    def room = state.rooms[n]
+    
+    if (newSetMode == "cool") {
+    	room.setMode = "cool"
+    } else if (newSetMode == "heat") {
+    	room.setMode = "heat"
+    } else {
+    	room.setMode = "off"
+    }
+    onOrOffCheck(n)
 }
