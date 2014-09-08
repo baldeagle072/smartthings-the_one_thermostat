@@ -48,7 +48,7 @@
 		
 			$username = '';
 			$password = '';
-			$installedAppId = ''
+			$installedAppId = '' //Use the ID # that shows up in the logs on the IDE for the installed program
 			
 			$page = "https://graph.api.smartthings.com/api/smartapps/installations/" + $installedAppId + "/currentTemp/0";
 			
