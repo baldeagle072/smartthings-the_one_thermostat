@@ -1,6 +1,8 @@
 //script to put in head
 
-<?php $installedAppId = '' //Use the ID # that shows up in the logs on the IDE for the installed program ?>
+<?php 
+	$installedAppId = '' //Use the ID # that shows up in the logs on the IDE for the installed program 
+?>
 
 <script>
 	
