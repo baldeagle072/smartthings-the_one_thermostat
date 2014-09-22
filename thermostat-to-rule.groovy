@@ -80,6 +80,12 @@ def setupConfigure() {
     
     def helpModes =
     	"Each mode can have a different set temperature."
+        
+    def helpSmsNumber = 
+    	"If you select text notifications, be sure to type in a phone number here."
+        
+    def helpSelectNotifications =
+    	"Select the types of notifications you would like to recieve."
     
     def inputNumRooms = [
     	name:			"numRooms",
@@ -112,6 +118,48 @@ def setupConfigure() {
         multiple: 		true,
         required:		false
     ]
+   /* 
+	def inputPushNotify = [
+    	name:			"pushNotify",
+        type:			"bool",
+        title:			"Recieve push noifications",
+  		defaultValue:	false
+    ]
+    
+    def inputSmsNotify = [
+    	name:			"smsNotify",
+        type:			"bool",
+        title:			"Recieve text noifications",
+  		defaultValue:	false
+    ]
+    
+    def inputSmsNumber = [
+    	name:			"smsNumber",
+        type:			"phone",
+        title:			"Phone number to get texts"
+    ]
+    
+    def inputSetTempNotify = [
+    	name:			"setTempNotify",
+        type:			"bool",
+        title:			"Notify when set temperature changes",
+  		defaultValue:	false
+    ]
+    
+    def inputOnNotify = [
+    	name:			"onNotify",
+        type:			"bool",
+        title:			"Notify when heater or A/C turn on",
+  		defaultValue:	false
+    ]
+    
+    def inputOffNotify = [
+    	name:			"offNotify",
+        type:			"bool",
+        title:			"Notify when heater or A/C turn off",
+  		defaultValue:	false
+    ]
+    */
     
     def pageProperties = [
     	name:		"setupConfigure",
@@ -119,7 +167,7 @@ def setupConfigure() {
         nextPage:	"setupRooms",
         uninstall:	state.installed
     ]
-    
+       
     return dynamicPage(pageProperties) {
     	section("Numbers") {
         	paragraph helpNumRooms
@@ -131,6 +179,21 @@ def setupConfigure() {
             input inputAwayModes
             input inputAsleepModes
         }
+        
+    /*
+        section("Notification") {
+            input inputPushNotify
+            input inputSmsNotify
+            paragraph helpSmsNumber
+            input inputSmsNumber
+            section {
+            	paragraph helpSelectNotifications
+                input inputSetTempNotify
+                input inputOnNotify
+                input inputOffNotify
+            }
+        }
+        */
     }
 }
 
@@ -441,12 +504,14 @@ def setupControlPanel() {
 }
 
 def installed() {
-	state.installed = true
+	TRACE("installed()")
+    state.installed = true
 	initialize()
 }
 
 def updated() {
-	unschedule()
+	TRACE("updated()")
+    unschedule()
 	unsubscribe()
 	initialize()
 }
@@ -457,10 +522,19 @@ def initialize() {
     
     // set global settings
     
-    state.numRooms = settings.numRooms.toInteger()
-    state.homeModes = settings.homeModes
-    state.awayModes = settings.awayModes
-    state.asleepModes = settings.asleepModes
+    state.numRooms 		= settings.numRooms.toInteger()
+   
+   	state.homeModes 	= settings.homeModes
+    state.awayModes 	= settings.awayModes
+    state.asleepModes 	= settings.asleepModes
+   /* 
+    state.pushNotify 	= settings.pushNotify
+    state.smsNotify 	= settings.smsNotify
+    state.smsNumber 	= settings.smsNumber
+    state.setTempNotify = settings.setTempNotify
+    state.onNotify 		= settings.onNotify
+    state.offNotify 	= settings.offNotify
+    */
     state.rooms = []
     
     // set rooms
@@ -477,6 +551,19 @@ def initialize() {
     schedule("0 * * * * ?", "checkSchedule")
     
     subscribe(location, onLocation)  
+
+    if (!state.accessToken) {
+        createAccessToken()
+    }
+    getURL(null)
+}
+
+def getURL(e) {
+    log.debug("getURL")
+    for (int n = 0; n < state.numRooms; n++) {
+        def url = "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/ui/${n}?access_token=${state.accessToken}"
+        log.debug "${state.rooms[n].name} url: $url"
+    }
 }
 
 private def roomInit(n) {
@@ -641,11 +728,9 @@ private def onOrOffCheck(n) {
     if (room.setMode == "cool") {
     	if (devices.tempMonitor) {
     		if (currentTemp >= (setTemp + 1)) {
-            	devices.conditioner?.on()
-                log.debug("turning on ${devices.conditioner}")
+            	devices.conditioner?.on()   
             } else if (currentTemp <= (setTemp - 1)) {
             	devices.conditioner?.off()
-                log.debug("turning off ${devices.conditioner}")
             }
     	} else {
         	log.debug("No way to tell temp")
@@ -654,10 +739,8 @@ private def onOrOffCheck(n) {
     	if (devices.tempMonitor) {
     		if (currentTemp <= (setTemp - 1)) {
             	devices.heater?.on()
-                log.debug("turning on ${devices.heater}")
             } else if (currentTemp >= (setTemp + 1)) {
             	devices.heater?.off()
-                log.debug("turning off ${devices.heater}")
             }
     	} else {
         	log.debug("No way to tell temp")
@@ -668,6 +751,7 @@ private def onOrOffCheck(n) {
         devices.heater?.off()
         devices.conditioner?.off()
     }
+    getURL(null)
 }
 
 private def setThermostat(n) {
@@ -699,7 +783,7 @@ private def makeSubscriptions(n) {
 }
 
 private def checkSchedule() {
-	TRACE("Checking Schedule")
+	//TRACE("Checking Schedule")
     for (int n = 0; n < state.numRooms; n++) {
         def room = state.rooms[n]
 		
@@ -737,8 +821,8 @@ private def checkSchedule() {
         def currentHour 	= currentTime.getHours()
         def currentMinute	= currentTime.getMinutes()
        
-        TRACE("Time1 Hour: $time1Hour Time1 Minute: $time1Minute timeRun1: $timeRun1")
-        TRACE("currentHour: $currentHour currentMinute: $currentMinute")
+        //TRACE("Time1 Hour: $time1Hour Time1 Minute: $time1Minute timeRun1: $timeRun1")
+        //TRACE("currentHour: $currentHour currentMinute: $currentMinute")
         
         if ((time1Hour == currentHour) && (time1Minute == currentMinute) && timeRun1) {
 			room.setTemp = timeSetTemp1
@@ -808,11 +892,24 @@ def getRoomDevices(n) {
     devices.conditioner	= settings."r${n}_conditioner"
     devices.tempMonitor	= settings."r${n}_temp"
     
-    log.debug("devices")
-    log.debug(devices)
-    
     return devices
 }
+
+/*
+private def notify(message) {
+	if (state.pushNotify) {
+    	sendPush(message)
+    }
+    
+    if (state.smsNotify) {
+    	if (state.smsNumber) {
+        	sendSms(state.smsNumber, message)
+        } else {
+        	log.debug("No SMS number")
+        }
+    }
+}
+*/
 
 private def TRACE(message) {
     log.debug message
@@ -833,6 +930,10 @@ mappings {
     
     path("/setMode/:room/:newSetMode") {
     	action: [GET: "setRoomMode"]
+    }
+
+    path("/ui/:room") {
+        action: [GET: "html"]
     }
     
 }
@@ -877,4 +978,78 @@ void setRoomMode() {
     	room.setMode = "off"
     }
     onOrOffCheck(n)
+}
+
+def html() {
+    render contentType: "text/html", data: "<!DOCTYPE html><html><head>${head(params.room.toInteger())}</head><body>${body(params.room.toInteger())}</body></html>"
+}
+
+def head(roomNum) {
+    def output = """
+    <script>
+    
+        function changeTemp() {
+            
+            var url = 'https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/setTemp/${roomNum}/';
+            
+            var temp = document.getElementById('temp').value;
+            
+            url += temp;
+
+            url += '?access_token=${state.accessToken}';
+            
+            document.getElementById('cmd').src=url;
+        }
+        
+        function turnOnHeat() {
+            
+            var url = 'https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/setMode/0/heat?access_token=${state.accessToken}';
+            
+            document.getElementById('cmd').src=url;
+            document.getElementById('mode').innerHTML = '<h4>Mode: heat</h4>';
+        }
+        
+        function turnOnCool() {
+            
+            var url = 'https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/setMode/0/cool?access_token=${state.accessToken}';
+            
+            document.getElementById('cmd').src=url;
+            document.getElementById('mode').innerHTML = '<h4>Mode: cool</h4>';
+        }
+        
+        function turnOffThermostat() {
+            
+            var url = 'https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/setMode/0/off?access_token=${state.accessToken}';
+            
+            document.getElementById('cmd').src=url;
+            document.getElementById('mode').innerHTML = '<h4>Mode: off</h4>';
+        }
+
+    </script>
+    """
+    
+    return output
+}
+
+private body(roomNum) {
+    log.debug("roomNum: $roomNum")
+    def room = state.rooms[roomNum]
+    def devices = getRoomDevices(roomNum)
+    log.debug("numRooms ${state.numRooms}")
+    log.debug("devices $devices")
+    def output = 
+        "<h3>Thermostat for ${room.name}</h3>" +
+        "<form>" +
+            "<label name='temp'>Change Temperature: </label>" +
+            "<input type='text' id='temp' name='temp' size='3' value='${room.setTemp}'><br>" +
+            "<input type='button' value='Heat' onclick='turnOnHeat();'>" +
+            "<input type='button' value='Cool' onclick='turnOnCool();'>" +
+            "<input type='button' value='Change Temperature' onclick='changeTemp();'>" +
+            "<input type='button' value='Off' onclick='turnOffThermostat();'><br>" +
+            "<div id='currentTemp'><h3>Current Temperature: ${devices.tempMonitor.currentTemperature} °F</h3></div>" +
+            "<div id='mode'><h4>Mode: ${room.setMode}</h4></div>" +
+        "</form>" +
+		" " +
+        "<iframe name='cmd' id='cmd' style='display:none'></iframe> "
+    return output
 }
